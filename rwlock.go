@@ -55,7 +55,7 @@ func InitDriver(name string) error {
 		return fmt.Errorf("Unkown rwlocker driver: %s", name)
 	}
 	__driver = __drivers[name]
-	log.Info("success init %s rwlock driver", name)
+	log.Infof("Rwlock: Init %s rwlock driver sucessfully", name)
 	return nil
 }
 
@@ -64,7 +64,7 @@ func RegisterDriver(name string, driver Driver) error {
 		log.Errorf("You have register this rwlocker driver: %s", name)
 		return fmt.Errorf("You have register this rwlocker driver: %s", name)
 	}
-	log.Info("Register rwlocker driver: %s", name)
+	log.Infof("Rwlock: Register rwlocker driver: %s", name)
 	__drivers[name] = driver
 	return nil
 }

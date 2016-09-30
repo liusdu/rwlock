@@ -7,8 +7,8 @@ import (
 )
 
 var basicModels = []interface{}{
-	new(Rwlock),
 	new(Host),
+	new(Rwlock),
 }
 
 // tables for RWlock
@@ -22,7 +22,7 @@ type Rwlock struct {
 }
 
 type Host struct {
-	id       int     `orm:"column(id);auto"`
+	Id       int     `orm:"pk;column(id);auto"`
 	Count    int64   `orm:"column(count);null"`
 	User     *Rwlock `orm:"rel(fk)"`
 	Hostname string  `orm:"column(hostname);size(255);null"`
