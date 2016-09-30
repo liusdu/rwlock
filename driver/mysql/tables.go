@@ -1,0 +1,32 @@
+package mysql
+
+import (
+	"time"
+
+	"github.com/astaxie/beego/orm"
+)
+
+var basicModels = []interface{}{
+	new(Host),
+	new(Rwlock),
+}
+
+// tables for RWlock
+// Rwlock struct
+type Rwlock struct {
+	Id   int       `orm:"column(id);auto"`
+	User string    `orm:"pk;column(user);size(255);"`
+	Time time.Time `orm:"column(time);type(datetime)"`
+	Host []*Host   `orm:"reverse(many)"`
+}
+
+type Host struct {
+	id       int
+	count    int64   `orm:"pk;column(count);null"`
+	User     *Rwlock `orm:"rel(fk)"`
+	Hostname string  `orm:"column(hostname);size(255);null"`
+}
+
+func init() {
+	orm.RegisterModel(basicModels...)
+}
