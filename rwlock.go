@@ -2,6 +2,8 @@ package rwlock
 
 import (
 	"fmt"
+	"math/rand"
+	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -49,7 +51,6 @@ func GetRwlocker(user string) (*Rwlocker, error) {
 }
 
 func InitDriver(name string) error {
-	log.Debugf("driver: %v", __drivers)
 	if _, exist := __drivers[name]; !exist {
 		log.Errorf("Unkown rwlocker driver: %s", name)
 		return fmt.Errorf("Unkown rwlocker driver: %s", name)
@@ -70,4 +71,12 @@ func RegisterDriver(name string, driver Driver) error {
 }
 func init() {
 	__drivers = make(map[string]Driver)
+	if hm, err := os.Hostname(); err != nil {
+		rand.Seed(time.Now().UnixNano())
+		x := rand.Intn(100000)
+		__hostname = "host" + string(x)
+		log.Errorf("Failed to get hostname,error: %s , use %s as hostname", err, __hostname)
+	} else {
+		__hostname = hm
+	}
 }

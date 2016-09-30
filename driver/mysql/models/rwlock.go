@@ -40,7 +40,8 @@ func InsertUser(user string) error {
 
 	defer endTransaction(o, err)
 	lock := Rwlock{
-		User: user}
+		User: user,
+		Time: time.Now()}
 
 	if _, err = o.Insert(&lock); err != nil {
 		return err
@@ -79,11 +80,11 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 	//TODO error type??
 	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
 	if err == orm.ErrNoRows {
-		log.Errorf("No user(%s) row in table, it is strange give up the lock", user)
+		log.Errorf("RLock :No user(%s) row in table, it is strange give up the lock", user)
 		//TODO what should we do for this
 		return false, nil
 	} else {
-		log.Errorf("Unexcept error for user(%s): %s", user, err)
+		log.Errorf("RLock: Unexcept error for user(%s): %s", user, err)
 		//TODO what should we do for this
 		return false, err
 	}

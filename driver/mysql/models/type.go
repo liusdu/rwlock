@@ -17,12 +17,12 @@ type Rwlock struct {
 	id   int       `orm:"column(id);auto"`
 	User string    `orm:"pk;column(user);size(255);"`
 	Type string    `orm:"column(type);size(255);"`
-	Time time.Time `orm:"column(time);type(datetime)"`
+	Time time.Time `orm:"column(time);type(datetime);null"`
 	Host []*Host   `orm:"reverse(many)"`
 }
 
 type Host struct {
-	Id       int     `orm:"pk;column(id);auto"`
+	Id       int     `orm:"column(id);auto"`
 	Count    int64   `orm:"column(count);null"`
 	User     *Rwlock `orm:"rel(fk)"`
 	Hostname string  `orm:"column(hostname);size(255);null"`
