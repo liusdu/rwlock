@@ -44,7 +44,7 @@ func InsertUser(user string) error {
 		Time: time.Now()}
 
 	if _, err = o.Insert(&lock); err != nil {
-		return err
+		return fmt.Errorf("InsertUser: insert row of rwlock err: %s", err)
 	}
 	if err = o.Commit(); err != nil {
 		return err
@@ -83,7 +83,7 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 		log.Errorf("RLock :No user(%s) row in table, it is strange give up the lock", user)
 		//TODO what should we do for this
 		return false, nil
-	} else {
+	} else if err != nil {
 		log.Errorf("RLock: Unexcept error for user(%s): %s", user, err)
 		//TODO what should we do for this
 		return false, err
@@ -133,19 +133,19 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 	host := &Host{}
 	err := o.QueryTable("host").
 		Filter("Hostname", hostname).
-		Filter("User__User__exact", user.User).One(&host)
+		Filter("User__User__exact", user.User).One(host)
 
 	if err == orm.ErrNoRows {
 		log.Debugf("No user-host(%s-%s) row in table, insert it", user.User, hostname)
 		host.Hostname = hostname
 		host.User = user
 		host.Count = 1
-		if _, err = o.Insert(user); err != nil {
+		if _, err = o.Insert(host); err != nil {
 			return err
 		}
 
-	} else {
-		return fmt.Errorf("Unexcept error for user-host(%s-%s): %s", user.User, hostname, err)
+	} else if err != nil {
+		return fmt.Errorf("IncreaseHost: CountUnexcept error for user-host(%s-%s): %s", user.User, hostname, err)
 	}
 
 	host.Count += 1
@@ -158,30 +158,32 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 
 // decreaseHostCount
 // it delete  a new record or increase the count by 1
-func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) (bool, error) {
+func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) (bool, bool, error) {
 	host := &Host{}
 	err := o.QueryTable("host").
 		Filter("Hostname__exact", hostname).
-		Filter("User__User__exact", user.User).One(&host)
+		Filter("User__User__exact", user.User).One(host)
 
 	if err == orm.ErrNoRows {
-		return true, fmt.Errorf("Unexpect error: no host row(%s,%s),maybe this lock is out fo date", hostname, user)
+		return true, true, fmt.Errorf("decreaseHostCount: Unexpect error: no host row(%s,%s),maybe this lock is out fo date", hostname, user)
 
-	} else {
-		return false, fmt.Errorf("Unexpect error for user-host(%s-%s): %s", user.User, hostname, err)
+	} else if err != nil {
+		return false, true, fmt.Errorf("decreaseHostCount: Unexpect error for user-host(%s-%s): %s", user.User, hostname, err)
 	}
 
 	host.Count -= 1
 	if host.Count == 0 {
 		if _, err = o.Delete(host); err != nil {
-			return false, err
+			return false, true, err
 		}
+		return true, true, err
+
 	} else {
 		if _, err = o.Update(host, "count"); err != nil {
-			return false, err
+			return false, false, err
 		}
 	}
-	return true, nil
+	return true, false, nil
 }
 func RUnLock(user, host string) (bool, error) {
 	var (
@@ -213,8 +215,8 @@ func RUnLock(user, host string) (bool, error) {
 	if err == orm.ErrNoRows {
 		log.Errorf("No user(%s) row in table, it is strange; maybe this lock is outof date", user)
 		return true, fmt.Errorf("No user(%s) row in table, it is strange; maybe this lock is outof date", user)
-	} else {
-		log.Errorf("Unexcept error for user(%s): %s", user, err)
+	} else if err != nil {
+		log.Errorf("Runlock: Unexcept error for user(%s): %s", user, err)
 		return false, fmt.Errorf("Unexcept error for user(%s): %s", user, err)
 	}
 
@@ -226,15 +228,14 @@ func RUnLock(user, host string) (bool, error) {
 	} else {
 		// we should check is it timeout
 		log.Debugf("Release a rlock(%s-%s)", host, user)
-		lock.Type = ""
-		lock.Time = time.Now()
-		if _, err = o.Update(lock, "type"); err != nil {
-			return false, err
-		}
 		// insert host count
-		var success bool
-		if success, err = decreaseHostCount(o, lock, host); success && err != nil {
+		var success, deleted bool
+		if success, deleted, err = decreaseHostCount(o, lock, host); success && err != nil {
 			log.Errorf("Unexpect error, but try to cotinue : %s", err)
+		}
+
+		// we should update type tp ""
+		if deleted == true {
 		}
 
 		if !success && err != nil {

@@ -37,8 +37,8 @@ func main() {
 }
 
 func GetRwlocker(user string) (*Rwlocker, error) {
-	if __driver == nil || __hostname != "" {
-		return nil, fmt.Errorf("You should register a rwdriver first")
+	if __driver == nil || __hostname == "" {
+		return nil, fmt.Errorf("Rwlock: You should register a rwdriver first")
 	}
 
 	return &Rwlocker{
