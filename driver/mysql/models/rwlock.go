@@ -61,7 +61,7 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 	)
 
 	if err = o.Begin(); err != nil {
-		log.Errorf("MysqlRLock: Begin trasaction err: %s", err)
+		log.Errorf("RwLock[m: %s-%s]: Begin trasaction err: %s", user, host, err)
 		return false, err
 	}
 
@@ -75,27 +75,27 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 	if err == orm.ErrNoRows {
 		// Someone delete this line for me, it is strange, But
 		// system can go on, so just failed for this time.
-		log.Errorf("Rlock[m]: Rwlock row is deleted abormally")
+		log.Errorf("Rlock[m: %s-%s]: Rwlock row is deleted abormally", user, host)
 		return false, nil
 	} else if err != nil {
 		// I can not treat this error, may be  it is very dangerous
 		// maybe  this is a small issue I have not catched.
 		// So give up for this time
-		log.Errorf("Rlock[m]: Unexport error: %s", err)
-		return false, err
+		log.Errorf("Rlock[m: %s-%s]: Unexport error: %s", user, host, err)
+		return false, fmt.Errorf("Rlock[m: %s-%s]: Unexport error: %s", user, host, err)
 	}
 
 	//read all rows with private key user
 	//TODO error type??
 	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
 	if err == orm.ErrNoRows {
-		log.Errorf("RLock :No user(%s) row in table, it is strange give up the lock", user)
-		//TODO what should we do for this
+		log.Errorf("RLock[m: %s-%s] :No row in rwlock table, it is strange give up the lock", user, host)
+		// No need to retry
 		return false, nil
 	} else if err != nil {
-		log.Errorf("RLock: Unexcept error for user(%s): %s", user, err)
+		log.Errorf("RLock[m: %s-%s]: Unexcept error: %s", user, host, err)
 		//TODO what should we do for this
-		return false, err
+		return false, fmt.Errorf("RLock[m: %s-%s]: Unexcept error: %s", user, host, err)
 	}
 
 	// if r lock we should update count and time  for this host
@@ -103,7 +103,8 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 		lock.Time = time.Now()
 		if _, err = o.Update(lock, "time", "type"); err != nil {
 			//TODO what should we do for this
-			return false, err
+			log.Errorf("RLock[m: %s-%s]: Unable to update time and type of lock: %s", user, host, err)
+			return false, fmt.Errorf("RLock[m: %s-%s]: Unable to update time and type of lock: %s", user, host, err)
 		}
 		//update host count
 		if err = increaseHostCount(o, lock, host); err != nil {
@@ -145,21 +146,21 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 		Filter("User__User__exact", user.User).One(host)
 
 	if err == orm.ErrNoRows {
-		log.Debugf("No user-host(%s-%s) row in table, insert it", user.User, hostname)
+		log.Debugf("IncreaseHostCount: user-host(%s-%s) row in table, insert it", user.User, hostname)
 		host.Hostname = hostname
 		host.User = user
 		host.Count = 1
 		if _, err = o.Insert(host); err != nil {
-			return err
+			return fmt.Errorf("increaseHostCount: Insert host table failed %s", err)
 		}
 
 	} else if err != nil {
-		return fmt.Errorf("IncreaseHost: CountUnexcept error for user-host(%s-%s): %s", user.User, hostname, err)
+		return fmt.Errorf("IncreaseHost: CountUnexcept error: %s", err)
 	}
 
 	host.Count += 1
 	if _, err = o.Update(host, "count"); err != nil {
-		return err
+		return fmt.Errorf("IncreaseHostCount: update host table failed %s", err)
 	}
 	return nil
 
@@ -167,42 +168,51 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 
 // decreaseHostCount
 // it delete  a new record or increase the count by 1
-func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) (bool, bool, error) {
+func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 	host := &Host{}
 	err := o.QueryTable("host").
 		Filter("Hostname__exact", hostname).
 		Filter("User__User__exact", user.User).One(host)
 
 	if err == orm.ErrNoRows {
-		return true, true, fmt.Errorf("decreaseHostCount: Unexpect error: no host row(%s,%s),maybe this lock is out fo date", hostname, user)
+		// We do not need let the upper func know this error, so just return nil
+		// And no not retry
+		log.Infof("DecreaseHostCount[m]: Unexpect error: no host row(%s,%s),maybe this lock is out fo date", hostname, user)
+		return nil
 
 	} else if err != nil {
-		return false, true, fmt.Errorf("decreaseHostCount: Unexpect error for user-host(%s-%s): %s", user.User, hostname, err)
+		// Errors system can not deal with. So let system try again
+		return fmt.Errorf("DecreaseHostCount[m]: Unexpect error for user-host(%s-%s): %s", user.User, hostname, err)
 	}
 
 	host.Count -= 1
 	if host.Count == 0 {
 		if _, err = o.Delete(host); err != nil {
-			return false, true, err
+			return fmt.Errorf("DecreaseHostCount[m]: Unexcept error when delete row for user-host(%s-%s) : %s", user.User, hostname, err)
 		}
-		return true, true, err
+		return nil
 
 	} else {
 		if _, err = o.Update(host, "count"); err != nil {
-			return false, false, err
+			return fmt.Errorf("DecreaseHostCount[m]: Unexcept error when update row for user-host(%s-%s) : %s", user.User, hostname, err)
 		}
 	}
-	return true, false, nil
+	return nil
 }
-func RUnLock(user, host string) (bool, error) {
+
+// RunLock is unlock of rlock
+// return value:
+//              bool : should retry
+//              error: error
+func RUnLock(user, host string) error {
 	var (
 		o   = orm.NewOrm()
 		err error
 	)
 
 	if err = o.Begin(); err != nil {
-		log.Errorf("MysqlRLock: Begin trasaction err: %s", err)
-		return false, err
+		log.Errorf("Runlock[m]: Begin trasaction err: %s", err)
+		return fmt.Errorf("Runlock[m]: Begin trasaction err: %s", err)
 	}
 
 	defer endTransaction(o, err)
@@ -211,46 +221,44 @@ func RUnLock(user, host string) (bool, error) {
 		User: user}
 	//TODO what types of error, we should dig!
 	err = o.ReadForUpdate(lock)
-
-	if err != nil {
-		// I can not get the lock, so things maybe wrong
-		log.Errorf("Can not Unlock for host-user(%s-%s)", host, user)
-		return false, err
+	if err == orm.ErrNoRows {
+		// Someone delete this line for me, it is strange, But
+		// system can go on, so just failed for this time.
+		log.Infof("RUnlock[m]: Rwlock row is deleted abormally, maybe this lock is out of date")
+		return nil
+	} else if err != nil {
+		// I can not treat this error, may be  it is very dangerous
+		// maybe  this is a small issue I have not catched.
+		// May be we need to retry
+		log.Errorf("RUlock[m]: Unexport error: %s", err)
+		return fmt.Errorf("RUlock[m]: Unexport error: %s", err)
 	}
 
 	//read all rows with private key user
 	//TODO error type??
 	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
 	if err == orm.ErrNoRows {
-		log.Errorf("RUnlock: No user(%s) row in table, it is strange; maybe this lock is outof date", user)
-		return true, fmt.Errorf("RUnlock: No user(%s) row in table, it is strange; maybe this lock is outof date", user)
+		// no need retry, becasue this lock is unlocked..
+		log.Errorf("RUnlock[m]: No user(%s) row in table, it is strange; maybe this lock is outof date", user)
+		return nil
 	} else if err != nil {
-		log.Errorf("Runlock: Unexcept error for user(%s): %s", user, err)
-		return false, fmt.Errorf("RUlock: Unexcept error for user(%s): %s", user, err)
+		// This an error I can not deal with, So try another time to fix
+		log.Errorf("Runlock[m]: Unexcept error for user(%s): %s", user, err)
+		return fmt.Errorf("RUlock[m]: Unexcept error for user(%s): %s", user, err)
 	}
 
 	// if r lock we should update count and time  for this host
 	if lock.Type != "r" {
-		log.Errorf("Runlock: Can find this lock(%s), it is strange; maybe this lock is outof date", user)
-		return true, fmt.Errorf("Runlock: Can find this lock(%s), it is strange; maybe this lock is outof date", user)
+		log.Infof("Runlock[m]: Can find this lock(%s), it is strange; maybe this lock is out of date", user)
+		return nil
 
 	} else {
 		// we should check is it timeout
-		log.Debugf("Release a rlock(%s-%s)", host, user)
+		log.Debugf("Runlock[m]: Reduce count of a rlock(%s-%s)", host, user)
 		// insert host count
-		var success, deleted bool
-		if success, deleted, err = decreaseHostCount(o, lock, host); success && err != nil {
-			log.Errorf("Unexpect error, but try to cotinue : %s", err)
+		if err = decreaseHostCount(o, lock, host); err != nil {
+			return fmt.Errorf("Runlock[m]: unexpected error : %s", err)
 		}
-
-		// we should update type tp ""
-		if deleted == true {
-		}
-
-		if !success && err != nil {
-			return false, err
-		}
-
 	}
-	return true, nil
+	return nil
 }

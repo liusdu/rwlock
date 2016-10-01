@@ -16,6 +16,8 @@ var (
 	__timeOut  time.Duration = time.Hour
 	__hostname string
 	__drivers  map[string]Driver
+	// if lock or unlock error, times we need to try
+	__retryCount = 2
 )
 
 type Rwlocker struct {
@@ -28,8 +30,17 @@ type Rwlocker struct {
 func (rwl *Rwlocker) Rlock() (bool, error) {
 	return __driver.Rlock(rwl.User, rwl.Host, rwl.Timeout)
 }
-func (rwl *Rwlocker) RUnlock() (bool, error) {
-	return __driver.RUnlock(rwl.User, rwl.Host)
+func (rwl *Rwlocker) RUnlock() {
+	for i := 0; i < __retryCount; i++ {
+		if err := __driver.RUnlock(rwl.User, rwl.Host); err != nil {
+			log.Infof("Runlock[%s-%s]: unexpect error: %s, try for the %d time,", rwl.User, rwl.Host, err, i+1)
+		} else {
+			log.Debugf("Runlock[%s-%s]: Release lock sucessfully", rwl.User, rwl.Host)
+			break
+		}
+		log.Errorf("Runlock[%s-%s]: Faild to unlock", rwl.User, rwl.Host)
+	}
+
 }
 
 func main() {

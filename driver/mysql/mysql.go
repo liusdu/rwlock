@@ -30,7 +30,7 @@ func (msd *MySQLDriver) Rlock(user, host string, timeout time.Duration) (bool, e
 	if err != nil {
 		//if failed for row exist; we can continue
 		if ok := strings.Contains(err.Error(), "Duplicate entry"); !ok {
-			return false, fmt.Errorf("Unexpected MySQL Rwlocker driver error: %s", err)
+			return false, fmt.Errorf("Rlock[m: %s-%s]: Unexpected MySQL Rwlocker driver error: %s", user, host, err)
 		}
 	}
 
@@ -43,7 +43,7 @@ func (msd *MySQLDriver) Rlock(user, host string, timeout time.Duration) (bool, e
 	}
 
 }
-func (msd *MySQLDriver) RUnlock(user, host string) (bool, error) {
+func (msd *MySQLDriver) RUnlock(user, host string) error {
 	return models.RUnLock(user, host)
 }
 func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, error) {
