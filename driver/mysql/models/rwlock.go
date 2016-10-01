@@ -72,7 +72,16 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 	//TODO what types of error, we should dig!
 	err = o.ReadForUpdate(lock)
 
-	if err != nil {
+	if err == orm.ErrNoRows {
+		// Someone delete this line for me, it is strange, But
+		// system can go on, so just failed for this time.
+		log.Errorf("Rlock[m]: Rwlock row is deleted abormally")
+		return false, nil
+	} else if err != nil {
+		// I can not treat this error, may be  it is very dangerous
+		// maybe  this is a small issue I have not catched.
+		// So give up for this time
+		log.Errorf("Rlock[m]: Unexport error: %s", err)
 		return false, err
 	}
 
@@ -213,17 +222,17 @@ func RUnLock(user, host string) (bool, error) {
 	//TODO error type??
 	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
 	if err == orm.ErrNoRows {
-		log.Errorf("No user(%s) row in table, it is strange; maybe this lock is outof date", user)
-		return true, fmt.Errorf("No user(%s) row in table, it is strange; maybe this lock is outof date", user)
+		log.Errorf("RUnlock: No user(%s) row in table, it is strange; maybe this lock is outof date", user)
+		return true, fmt.Errorf("RUnlock: No user(%s) row in table, it is strange; maybe this lock is outof date", user)
 	} else if err != nil {
 		log.Errorf("Runlock: Unexcept error for user(%s): %s", user, err)
-		return false, fmt.Errorf("Unexcept error for user(%s): %s", user, err)
+		return false, fmt.Errorf("RUlock: Unexcept error for user(%s): %s", user, err)
 	}
 
 	// if r lock we should update count and time  for this host
 	if lock.Type != "r" {
-		log.Errorf("Can find this lock(%s), it is strange; maybe this lock is outof date", user)
-		return true, fmt.Errorf("Can find this lock(%s), it is strange; maybe this lock is outof date", user)
+		log.Errorf("Runlock: Can find this lock(%s), it is strange; maybe this lock is outof date", user)
+		return true, fmt.Errorf("Runlock: Can find this lock(%s), it is strange; maybe this lock is outof date", user)
 
 	} else {
 		// we should check is it timeout
