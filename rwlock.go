@@ -30,7 +30,7 @@ type Rwlocker struct {
 func (rwl *Rwlocker) Rlock() (bool, error) {
 	return __driver.Rlock(rwl.User, rwl.Host, rwl.Timeout)
 }
-func (rwl *Rwlocker) RUnlock() {
+func (rwl *Rwlocker) RUnlock() error {
 	for i := 0; i < __retryCount; i++ {
 		if err := __driver.RUnlock(rwl.User, rwl.Host); err != nil {
 			log.Infof("Runlock[%s-%s]: unexpect error: %s, try for the %d time,", rwl.User, rwl.Host, err, i+1)
@@ -39,14 +39,29 @@ func (rwl *Rwlocker) RUnlock() {
 			break
 		}
 		log.Errorf("Runlock[%s-%s]: Faild to unlock", rwl.User, rwl.Host)
+		return fmt.Errorf("Runlock[%s-%s]: Faild to unlock", rwl.User, rwl.Host)
 	}
+	return nil
 
 }
 
-func main() {
-	fmt.Println("vim-go")
+func (rwl *Rwlocker) Wlock() (bool, error) {
+	return __driver.Wlock(rwl.User, rwl.Host, rwl.Timeout)
 }
+func (rwl *Rwlocker) WUnlock() error {
+	for i := 0; i < __retryCount; i++ {
+		if err := __driver.WUnlock(rwl.User, rwl.Host); err != nil {
+			log.Infof("Wunlock[%s-%s]: unexpect error: %s, try for the %d time,", rwl.User, rwl.Host, err, i+1)
+		} else {
+			log.Debugf("Wunlock[%s-%s]: Release lock sucessfully", rwl.User, rwl.Host)
+			break
+		}
+		log.Errorf("Wunlock[%s-%s]: Faild to unlock", rwl.User, rwl.Host)
+		return fmt.Errorf("Wunlock[%s-%s]: Faild to unlock", rwl.User, rwl.Host)
+	}
+	return nil
 
+}
 func GetRwlocker(user string) (*Rwlocker, error) {
 	if __driver == nil || __hostname == "" {
 		return nil, fmt.Errorf("Rwlock: You should register a rwdriver first")

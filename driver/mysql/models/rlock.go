@@ -12,16 +12,16 @@ import (
 // endTransaction stop Transaction due err
 func endTransaction(o orm.Ormer, serr error) {
 	if serr != nil {
-		log.Errorf("InsertUser error: %s", serr)
+		log.Errorf("Rwlock[m]: Trasaction error: %s", serr)
 		if err := o.Rollback(); err != nil {
-			log.Errorf("InsertUser rollback error::%s", err)
+			log.Errorf("Rwlock[m]: Rollback error: %s", err)
 		}
 		return
 	}
 	if err := o.Commit(); err != nil {
-		log.Errorf("InsertUser commit error:%s", err)
+		log.Errorf("Rwlock[m]: Trasaction commit error: %s", err)
 		if err := o.Rollback(); err != nil {
-			log.Errorf("InsertUser rollback error::%s", err)
+			log.Errorf("Rwlock[m]: Rollback error from commit: %s", err)
 		}
 	}
 }
@@ -38,6 +38,8 @@ func InsertUser(user string) error {
 		return err
 	}
 
+	log.Debugf("InsertUser: Begin trasaction success")
+
 	defer endTransaction(o, err)
 	lock := Rwlock{
 		User: user,
@@ -46,10 +48,6 @@ func InsertUser(user string) error {
 	if _, err = o.Insert(&lock); err != nil {
 		return fmt.Errorf("InsertUser: insert row of rwlock err: %s", err)
 	}
-	if err = o.Commit(); err != nil {
-		return err
-	}
-
 	return nil
 
 }
@@ -64,6 +62,7 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 		log.Errorf("RwLock[m: %s-%s]: Begin trasaction err: %s", user, host, err)
 		return false, err
 	}
+	log.Debugf("RLock[m: %s-%s]: Begin trasaction success", user, host)
 
 	defer endTransaction(o, err)
 
@@ -99,7 +98,10 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 	}
 
 	// if r lock we should update count and time  for this host
+	// if rlock is out of date, we should clean the count
 	if lock.Type == "r" {
+		// we do not need to remove the related row on host table
+		// Time clumon of host table can tell me to do it later
 		lock.Time = time.Now()
 		if _, err = o.Update(lock, "time", "type"); err != nil {
 			//TODO what should we do for this
@@ -107,7 +109,7 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 			return false, fmt.Errorf("RLock[m: %s-%s]: Unable to update time and type of lock: %s", user, host, err)
 		}
 		//update host count
-		if err = increaseHostCount(o, lock, host); err != nil {
+		if err = increaseHostCount(o, lock, host, timeout); err != nil {
 			//TODO what should we do for this
 			return false, err
 		}
@@ -124,7 +126,7 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 				return false, err
 			}
 			// insert host count
-			if err = increaseHostCount(o, lock, host); err != nil {
+			if err = increaseHostCount(o, lock, host, timeout); err != nil {
 				//TODO what should we do for this
 				return false, err
 			}
@@ -139,7 +141,7 @@ func RLock(user, host string, timeout time.Duration) (bool, error) {
 
 // increaseHostCount
 // it insert a new record or increase the count by 1
-func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
+func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string, timeout time.Duration) error {
 	host := &Host{}
 	err := o.QueryTable("host").
 		Filter("Hostname", hostname).
@@ -150,15 +152,22 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 		host.Hostname = hostname
 		host.User = user
 		host.Count = 1
+		host.Time = time.Now()
 		if _, err = o.Insert(host); err != nil {
 			return fmt.Errorf("increaseHostCount: Insert host table failed %s", err)
 		}
+		return nil
 
 	} else if err != nil {
 		return fmt.Errorf("IncreaseHost: CountUnexcept error: %s", err)
 	}
 
+	if ok := time.Now().After(host.Time.Add(timeout)); ok == true {
+		host.Count = 1
+	}
+	host.Time = time.Now()
 	host.Count += 1
+
 	if _, err = o.Update(host, "count"); err != nil {
 		return fmt.Errorf("IncreaseHostCount: update host table failed %s", err)
 	}
@@ -166,11 +175,26 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 
 }
 
+// removecreaseHostCount
+// it delete  a new record of user-host
+func removeHostCount(o orm.Ormer, user *Rwlock, hostname string) (err error) {
+	host := &Host{
+		Hostname: hostname,
+		User:     user,
+	}
+
+	if _, err = o.Delete(host); err != nil {
+		return fmt.Errorf("DeleteHostCount[m: %s-%s]: Unexcept error when delete row: %s", user.User, hostname, err)
+	}
+
+	return nil
+}
+
 // decreaseHostCount
 // it delete  a new record or increase the count by 1
-func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
+func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) (rm bool, err error) {
 	host := &Host{}
-	err := o.QueryTable("host").
+	err = o.QueryTable("host").
 		Filter("Hostname__exact", hostname).
 		Filter("User__User__exact", user.User).One(host)
 
@@ -178,26 +202,27 @@ func decreaseHostCount(o orm.Ormer, user *Rwlock, hostname string) error {
 		// We do not need let the upper func know this error, so just return nil
 		// And no not retry
 		log.Infof("DecreaseHostCount[m]: Unexpect error: no host row(%s,%s),maybe this lock is out fo date", hostname, user)
-		return nil
+		return true, nil
 
 	} else if err != nil {
 		// Errors system can not deal with. So let system try again
-		return fmt.Errorf("DecreaseHostCount[m]: Unexpect error for user-host(%s-%s): %s", user.User, hostname, err)
+		return false, fmt.Errorf("DecreaseHostCount[m]: Unexpect error for user-host(%s-%s): %s", user.User, hostname, err)
 	}
 
 	host.Count -= 1
-	if host.Count == 0 {
+	if host.Count <= 0 {
+		log.Debugf("DecreaseHostCount[m-%s-%s]: count become zero, remove it,", hostname, user.User)
 		if _, err = o.Delete(host); err != nil {
-			return fmt.Errorf("DecreaseHostCount[m]: Unexcept error when delete row for user-host(%s-%s) : %s", user.User, hostname, err)
+			return false, fmt.Errorf("DecreaseHostCount[m]: Unexcept error when delete row for user-host(%s-%s) : %s", user.User, hostname, err)
 		}
-		return nil
+		return true, nil
 
 	} else {
 		if _, err = o.Update(host, "count"); err != nil {
-			return fmt.Errorf("DecreaseHostCount[m]: Unexcept error when update row for user-host(%s-%s) : %s", user.User, hostname, err)
+			return false, fmt.Errorf("DecreaseHostCount[m]: Unexcept error when update row for user-host(%s-%s) : %s", user.User, hostname, err)
 		}
 	}
-	return nil
+	return false, nil
 }
 
 // RunLock is unlock of rlock
@@ -254,10 +279,17 @@ func RUnLock(user, host string) error {
 
 	} else {
 		// we should check is it timeout
-		log.Debugf("Runlock[m]: Reduce count of a rlock(%s-%s)", host, user)
+		log.Debugf("Runlock[m-%s-%s]: Reduce count", host, user)
 		// insert host count
-		if err = decreaseHostCount(o, lock, host); err != nil {
+		var rm bool
+		if rm, err = decreaseHostCount(o, lock, host); err != nil {
 			return fmt.Errorf("Runlock[m]: unexpected error : %s", err)
+		}
+		if rm {
+			lock.Type = ""
+			if _, err = o.Update(lock, "type"); err != nil {
+				return fmt.Errorf("Runlock[m: %s-%s]: Unexcept error when update row: %s", host, user, err)
+			}
 		}
 	}
 	return nil

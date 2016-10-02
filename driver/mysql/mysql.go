@@ -47,29 +47,26 @@ func (msd *MySQLDriver) RUnlock(user, host string) error {
 	return models.RUnLock(user, host)
 }
 func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, error) {
-	/*
-		//can we insert this line
-		err := models.InsertUser(user)
-		if err != nil {
-			//if failed for row exist; we can continue
-			if ok := strings.Contains(err.Error(), "Duplicate entry"); !ok {
-				return false, fmt.Errorf("Some errors I can not treate")
-			}
+	//can we insert this line
+	err := models.InsertUser(user)
+	if err != nil {
+		//if failed for row exist; we can continue
+		if ok := strings.Contains(err.Error(), "Duplicate entry"); !ok {
+			return false, fmt.Errorf("Some errors I can not treate")
 		}
+	}
 
-		var getlock bool
-		getlock, err = models.WLock(user, host, timeout)
-		if err != nil {
-			return false, err
-		} else {
-			return getlock, err
-		}
-	*/
+	var getlock bool
+	getlock, err = models.WLock(user, host, timeout)
+	if err != nil {
+		return false, err
+	} else {
+		return getlock, err
+	}
 	return true, nil
 
 }
 func (msd *MySQLDriver) WUnlock(user, host string) error {
-	//return models.RUnLock(user, host)
-	return nil
+	return models.RUnLock(user, host)
 
 }

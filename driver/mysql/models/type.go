@@ -26,6 +26,7 @@ type Host struct {
 	Count    int64   `orm:"column(count);null"`
 	User     *Rwlock `orm:"rel(fk)"`
 	Hostname string  `orm:"column(hostname);size(255);null"`
+	Time time.Time `orm:"column(time);type(datetime);null"`
 }
 
 func init() {
