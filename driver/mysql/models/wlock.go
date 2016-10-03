@@ -45,8 +45,9 @@ func WLock(user, host string, timeout time.Duration) (bool, error) {
 		}
 		lock.Time = time.Now()
 		lock.Type = "w"
+		lock.LastWlock = host
 
-		if _, err = o.Update(lock, "time", "type"); err != nil {
+		if _, err = o.Update(lock, "time", "type", "lastwlock"); err != nil {
 			//TODO what should we do for this
 			log.Errorf("WLock[m: %s-%s]: Unable to update time and type of lock: %s", user, host, err)
 			return false, fmt.Errorf("WLock[m: %s-%s]: Unable to update time and type of lock: %s", user, host, err)

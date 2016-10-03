@@ -80,11 +80,12 @@ func GetRwlocker(user string) (*Rwlocker, error) {
 
 func InitDriver(name string) error {
 	if _, exist := __drivers[name]; !exist {
-		log.Errorf("Unkown rwlocker driver: %s", name)
-		return fmt.Errorf("Unkown rwlocker driver: %s", name)
+		log.Errorf("InitDriver: Unkown rwlocker driver: %s", name)
+		return fmt.Errorf("InitDriver; Unkown rwlocker driver: %s", name)
 	}
 	__driver = __drivers[name]
-	log.Infof("Rwlock: Init %s rwlock driver sucessfully", name)
+	log.Infof("Rwlock: Init %s rwlock driver sucessfully,try to clean up garbages from the last run", name)
+	__driver.Cleanup(__hostname, __timeOut)
 	return nil
 }
 

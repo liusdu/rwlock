@@ -68,5 +68,8 @@ func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, e
 }
 func (msd *MySQLDriver) WUnlock(user, host string) error {
 	return models.WUnLock(user, host)
+}
 
+func (msd *MySQLDriver) Cleanup(host string, timeout time.Duration) error {
+	return models.CleanupTables(host, timeout)
 }

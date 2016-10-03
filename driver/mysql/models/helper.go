@@ -38,7 +38,7 @@ func InsertUser(user string) error {
 		return fmt.Errorf("InsertUser Begin trasaction err: %s", err)
 	}
 
-	log.Debugf("Rwlock[m: %s] InsertUser Begin trasaction success")
+	log.Debugf("Rwlock[m: %s] InsertUser Begin trasaction success", user)
 
 	defer endTransaction(o, err)
 	lock := Rwlock{
@@ -46,7 +46,7 @@ func InsertUser(user string) error {
 		Time: time.Now()}
 
 	if _, err = o.Insert(&lock); err != nil {
-		return fmt.Errorf("InsertUser: insert row of rwlock err: %s", err)
+		return fmt.Errorf("InsertUser[m: %s]: insert row of rwlock err: %s", user, err)
 	}
 	return nil
 
