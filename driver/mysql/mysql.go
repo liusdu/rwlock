@@ -67,6 +67,6 @@ func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, e
 
 }
 func (msd *MySQLDriver) WUnlock(user, host string) error {
-	return models.RUnLock(user, host)
+	return models.WUnLock(user, host)
 
 }

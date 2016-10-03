@@ -131,7 +131,6 @@ func WUnLock(user, host string) error {
 
 	} else {
 		// we should check is it timeout
-		log.Debugf("Wunlock[m-%s-%s]: Reduce count", host, user)
 		lock.Type = ""
 		if _, err = o.Update(lock, "type"); err != nil {
 			return fmt.Errorf("Wunlock[m: %s-%s]: Unexcept error when update row: %s", host, user, err)

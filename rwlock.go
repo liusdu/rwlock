@@ -46,9 +46,11 @@ func (rwl *Rwlocker) RUnlock() error {
 }
 
 func (rwl *Rwlocker) Wlock() (bool, error) {
+	log.Debugf("[Rwlock[%s-%s]: Getting Wlock", rwl.User, rwl.Host)
 	return __driver.Wlock(rwl.User, rwl.Host, rwl.Timeout)
 }
 func (rwl *Rwlocker) WUnlock() error {
+	log.Debugf("[Rwlock[%s-%s]: Release Wlock", rwl.User, rwl.Host)
 	for i := 0; i < __retryCount; i++ {
 		if err := __driver.WUnlock(rwl.User, rwl.Host); err != nil {
 			log.Infof("Wunlock[%s-%s]: unexpect error: %s, try for the %d time,", rwl.User, rwl.Host, err, i+1)
