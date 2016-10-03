@@ -11,8 +11,9 @@ import (
 
 func WLock(user, host string, timeout time.Duration) (bool, error) {
 	var (
-		o   = orm.NewOrm()
-		err error
+		o    = orm.NewOrm()
+		err  error
+		lock *Rwlock
 	)
 
 	if err = o.Begin(); err != nil {
@@ -23,35 +24,16 @@ func WLock(user, host string, timeout time.Duration) (bool, error) {
 
 	defer endTransaction(o, err)
 
-	lock := &Rwlock{
-		User: user}
-	//TODO what types of error, we should dig!
-	err = o.ReadForUpdate(lock)
-
-	if err == orm.ErrNoRows {
-		// Someone delete this line for me, it is strange, But
-		// system can go on, so just failed for this time.
-		log.Errorf("Wlock[m: %s-%s]: Rwlock row is deleted abormally", user, host)
-		return false, nil
-	} else if err != nil {
-		// I can not treat this error, may be  it is very dangerous
-		// maybe  this is a small issue I have not catched.
-		// So give up for this time
-		log.Errorf("Wlock[m: %s-%s]: Unexport error: %s", user, host, err)
-		return false, fmt.Errorf("Wlock[m: %s-%s]: Unexport error: %s", user, host, err)
+	// 2. Lock the user
+	lock, err = lockUser(o, user)
+	if err != nil {
+		log.Errorf("RLock[m: %s-%s]: Failed ot get Rlock: %s", user, host, err)
+		return false, fmt.Errorf("Rlock[m: %s-%s]: error: %s", user, host, err)
 	}
-
-	//read all rows with private key user
-	//TODO error type??
-	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
-	if err == orm.ErrNoRows {
-		log.Errorf("WLock[m: %s-%s] :No row in rwlock table, it is strange give up the lock", user, host)
-		// No need to retry
+	// false to get rlock return
+	if lock == nil {
+		log.Infof("WLock[m: %s-%s]: Failed ot get wlock", user, host)
 		return false, nil
-	} else if err != nil {
-		log.Errorf("WLock[m: %s-%s]: Unexcept error: %s", user, host, err)
-		//TODO what should we do for this
-		return false, fmt.Errorf("WLock[m: %s-%s]: Unexcept error: %s", user, host, err)
 	}
 
 	if ok := time.Now().After(lock.Time.Add(timeout)); ok || lock.Type == "" {
@@ -83,8 +65,9 @@ func WLock(user, host string, timeout time.Duration) (bool, error) {
 //              error: error
 func WUnLock(user, host string) error {
 	var (
-		o   = orm.NewOrm()
-		err error
+		o    = orm.NewOrm()
+		err  error
+		lock *Rwlock
 	)
 
 	if err = o.Begin(); err != nil {
@@ -93,35 +76,11 @@ func WUnLock(user, host string) error {
 	}
 
 	defer endTransaction(o, err)
-
-	lock := &Rwlock{
-		User: user}
-	//TODO what types of error, we should dig!
-	err = o.ReadForUpdate(lock)
-	if err == orm.ErrNoRows {
-		// Someone delete this line for me, it is strange, But
-		// system can go on, so just failed for this time.
-		log.Infof("WUnlock[m]: Rwlock row is deleted abormally, maybe this lock is out of date")
-		return nil
-	} else if err != nil {
-		// I can not treat this error, may be  it is very dangerous
-		// maybe  this is a small issue I have not catched.
-		// May be we need to retry
-		log.Errorf("WUlock[m]: Unexport error: %s", err)
-		return fmt.Errorf("WUlock[m]: Unexport error: %s", err)
-	}
-
-	//read all rows with private key user
-	//TODO error type??
-	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
-	if err == orm.ErrNoRows {
-		// no need retry, becasue this lock is unlocked..
-		log.Errorf("WUnlock[m]: No user(%s) row in table, it is strange; maybe this lock is outof date", user)
-		return nil
-	} else if err != nil {
-		// This an error I can not deal with, So try another time to fix
-		log.Errorf("Runlock[m]: Unexcept error for user(%s): %s", user, err)
-		return fmt.Errorf("RUlock[m]: Unexcept error for user(%s): %s", user, err)
+	// 2. Lock the user
+	lock, err = lockUser(o, user)
+	if err != nil {
+		log.Errorf("WUnLock[m: %s-%s]: Failed ot get Rlock: %s", user, host, err)
+		return fmt.Errorf("WUnlock[m: %s-%s]: error: %s", user, host, err)
 	}
 
 	// if r lock we should update count and time  for this host
