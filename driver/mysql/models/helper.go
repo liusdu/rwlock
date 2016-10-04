@@ -126,11 +126,10 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string, timeout time.
 // removecreaseHostCount
 // it delete  a new record of user-host
 func removeHostCount(o orm.Ormer, user *Rwlock, hostname string) (err error) {
-	host := &Host{
-		Hostname: hostname,
-		User:     user,
-	}
-	err := o.ReadForUpdate(host)
+	host := &Host{}
+	err = o.QueryTable("host").
+		Filter("Hostname__exact", hostname).
+		Filter("User__User__exact", user.User).One(host)
 
 	if err == orm.ErrNoRows {
 		// Someone delete this line for me, it is strange, But
@@ -142,7 +141,7 @@ func removeHostCount(o orm.Ormer, user *Rwlock, hostname string) (err error) {
 		// maybe  this is a small issue I have not catched.
 		// So give up for this time
 		log.Errorf("RemoveHostCount[m: %s-%s]: Lock user error: %s", user.User, hostname, err)
-		return nil, fmt.Errorf("RemoveHostCount[m: %s-%s]: Lock user error: %s", user.User, hostname, err)
+		return fmt.Errorf("RemoveHostCount[m: %s-%s]: Lock user error: %s", user.User, hostname, err)
 	}
 
 	if _, err = o.Delete(host); err != nil {

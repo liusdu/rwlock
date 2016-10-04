@@ -38,6 +38,7 @@ func WLock(user, host string, timeout time.Duration) (bool, error) {
 
 	if ok := time.Now().After(lock.Time.Add(timeout)); ok || lock.Type == "" {
 		// we shoud refile rwlock row and try to delete related row on host table;
+		log.Infof("WLock[m: %s-%s]: Last lock is out of date,replace it", user, host)
 		if lock.Type == "r" {
 			if err = removeHostCount(o, lock, host); err != nil {
 				return false, err
@@ -54,7 +55,7 @@ func WLock(user, host string, timeout time.Duration) (bool, error) {
 		}
 	} else {
 		// Lock by another wlock, give up
-		log.Debugf("WLock[m: %s-%s]: Cannot get lock", user, host)
+		log.Debugf("WLock[m: %s-%s]: lock is already aquired, give up", user, host)
 		return false, nil
 	}
 	return true, nil
