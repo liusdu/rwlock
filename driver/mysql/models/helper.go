@@ -71,16 +71,19 @@ func lockUser(o orm.Ormer, user string) (*Rwlock, error) {
 		log.Errorf("LockUser[m: %s]: Lock user error: %s", user, err)
 		return nil, fmt.Errorf("LockUser[m: %s]: Lock user error: %s", user, err)
 	}
-	err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
-	if err == orm.ErrNoRows {
-		log.Errorf("LockUser[m: %s] :lock do not exist, give up", user)
-		// No need to retry
-		return nil, nil
-	} else if err != nil {
-		log.Errorf("LockUser[m: %s]: Query user error: %s", user, err)
-		//TODO what should we do for this
-		return nil, fmt.Errorf("LockUser[m: %s]: Query user error: %s", user, err)
-	}
+	/*
+		err = o.QueryTable("rwlock").Filter("user__exact", user).One(lock)
+		if err == orm.ErrNoRows {
+			log.Errorf("LockUser[m: %s] :lock do not exist, give up", user)
+			// No need to retry
+			return nil, nil
+		} else if err != nil {
+			log.Errorf("LockUser[m: %s]: Query user error: %s", user, err)
+			//TODO what should we do for this
+			return nil, fmt.Errorf("LockUser[m: %s]: Query user error: %s", user, err)
+		}
+	*/
+	log.Debugf("LockUser[m: %s]: lock user successfully!", user)
 	return lock, nil
 }
 
@@ -126,6 +129,20 @@ func removeHostCount(o orm.Ormer, user *Rwlock, hostname string) (err error) {
 	host := &Host{
 		Hostname: hostname,
 		User:     user,
+	}
+	err := o.ReadForUpdate(host)
+
+	if err == orm.ErrNoRows {
+		// Someone delete this line for me, it is strange, But
+		// system can go on, so just failed for this time.
+		log.Errorf("RemoveHostCount[m: %s-%s]: Lock do not exist, so give up", user.User, hostname)
+		return nil
+	} else if err != nil {
+		// I can not treat this error, may be  it is very dangerous
+		// maybe  this is a small issue I have not catched.
+		// So give up for this time
+		log.Errorf("RemoveHostCount[m: %s-%s]: Lock user error: %s", user.User, hostname, err)
+		return nil, fmt.Errorf("RemoveHostCount[m: %s-%s]: Lock user error: %s", user.User, hostname, err)
 	}
 
 	if _, err = o.Delete(host); err != nil {
