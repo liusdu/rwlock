@@ -14,7 +14,7 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type CleanupSuite struct {
+type MysqlSuite struct {
 	locks    []Rwlock
 	dbName   string
 	dbServer string
@@ -24,7 +24,7 @@ type CleanupSuite struct {
 	conn     string
 }
 
-var _ = Suite(&CleanupSuite{})
+var _ = Suite(&MysqlSuite{})
 
 func dropdb(conn string, dbname string) error {
 	db, err := sql.Open("mysql", conn)
@@ -65,33 +65,33 @@ func reCreateTables() error {
 	verbose := true
 	return orm.RunSyncdb(name, force, verbose)
 }
-func (cs *CleanupSuite) SetUpTest(c *C) {
+func (ms *MysqlSuite) SetUpTest(c *C) {
 	err := reCreateTables()
 	c.Assert(err, IsNil)
 }
 
-func (cs *CleanupSuite) SetUpSuite(c *C) {
-	cs.dbName = "lock2"
-	cs.dbUser = "root"
-	cs.dbPwd = "00010001"
-	cs.dbServer = "127.0.0.1"
-	cs.dbPort = "3306"
+func (ms *MysqlSuite) SetUpSuite(c *C) {
+	ms.dbName = "lock2"
+	ms.dbUser = "root"
+	ms.dbPwd = "00010001"
+	ms.dbServer = "127.0.0.1"
+	ms.dbPort = "3306"
 
-	conn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", cs.dbUser, cs.dbPwd, cs.dbServer, cs.dbPort, "mysql")
+	conn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", ms.dbUser, ms.dbPwd, ms.dbServer, ms.dbPort, "mysql")
 	err := createdb(conn, "lock2")
-	cs.conn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", cs.dbUser, cs.dbPwd, cs.dbServer, cs.dbPort, cs.dbName)
-	orm.RegisterDataBase("default", "mysql", cs.conn)
+	ms.conn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", ms.dbUser, ms.dbPwd, ms.dbServer, ms.dbPort, ms.dbName)
+	orm.RegisterDataBase("default", "mysql", ms.conn)
 	c.Assert(err, IsNil)
 	orm.NewOrm().Using("default")
 
 }
 
-func (cs *CleanupSuite) TearDownSuite(c *C) {
-	err := dropdb(cs.conn, "lock2")
+func (ms *MysqlSuite) TearDownSuite(c *C) {
+	err := dropdb(ms.conn, "lock2")
 	c.Assert(err, IsNil)
 
 }
-func (cs *CleanupSuite) TestInsertUser(c *C) {
+func (ms *MysqlSuite) TestInsertUser(c *C) {
 	//Insert a user
 	err := InsertUser("aaa")
 	c.Assert(err, IsNil)
@@ -104,7 +104,7 @@ func (cs *CleanupSuite) TestInsertUser(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (cs *CleanupSuite) TestLockUser(c *C) {
+func (ms *MysqlSuite) TestLockUser(c *C) {
 	//Insert a user
 	err := InsertUser("aaa")
 	c.Assert(err, IsNil)
