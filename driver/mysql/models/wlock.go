@@ -58,6 +58,7 @@ func Wlock(user, host string, timeout time.Duration) (bool, error) {
 		log.Debugf("WLock[m: %s-%s]: lock is already aquired, give up", user, host)
 		return false, nil
 	}
+	log.Debugf("WLock[m: %s-%s]: Get lock successfully", user, host)
 	return true, nil
 }
 
