@@ -44,7 +44,7 @@ func (msd *MySQLDriver) Rlock(user, host string, timeout time.Duration) (bool, e
 
 }
 func (msd *MySQLDriver) RUnlock(user, host string) error {
-	return models.RUnLock(user, host)
+	return models.RUnlock(user, host)
 }
 func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, error) {
 	//can we insert this line
@@ -57,7 +57,7 @@ func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, e
 	}
 
 	var getlock bool
-	getlock, err = models.WLock(user, host, timeout)
+	getlock, err = models.Wlock(user, host, timeout)
 	if err != nil {
 		return false, err
 	} else {
@@ -67,7 +67,7 @@ func (msd *MySQLDriver) Wlock(user, host string, timeout time.Duration) (bool, e
 
 }
 func (msd *MySQLDriver) WUnlock(user, host string) error {
-	return models.WUnLock(user, host)
+	return models.WUnlock(user, host)
 }
 
 func (msd *MySQLDriver) Cleanup(host string, timeout time.Duration) error {

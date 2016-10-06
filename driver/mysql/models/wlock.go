@@ -9,7 +9,7 @@ import (
 	_ "github.com/go-sql-driver/mysql" //sql driver
 )
 
-func WLock(user, host string, timeout time.Duration) (bool, error) {
+func Wlock(user, host string, timeout time.Duration) (bool, error) {
 	var (
 		o    = orm.NewOrm()
 		err  error
@@ -65,7 +65,7 @@ func WLock(user, host string, timeout time.Duration) (bool, error) {
 // return value:
 //              bool : should retry
 //              error: error
-func WUnLock(user, host string) error {
+func WUnlock(user, host string) error {
 	var (
 		o    = orm.NewOrm()
 		err  error
