@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
-	//log "github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/astaxie/beego/orm"
 	. "github.com/go-check/check"
 	_ "github.com/go-sql-driver/mysql" //sql driver
@@ -15,13 +16,14 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type MysqlSuite struct {
-	locks    []Rwlock
-	dbName   string
-	dbServer string
-	dbPort   string
-	dbUser   string
-	dbPwd    string
-	conn     string
+	locks       []Rwlock
+	dbName      string
+	dbServer    string
+	dbPort      string
+	dbUser      string
+	dbPwd       string
+	conn        string
+	lockTimeout time.Duration
 }
 
 var _ = Suite(&MysqlSuite{})
@@ -62,7 +64,7 @@ func createdb(conn string, dbname string) error {
 func reCreateTables() error {
 	name := "default"
 	force := true
-	verbose := true
+	verbose := false
 	return orm.RunSyncdb(name, force, verbose)
 }
 func (ms *MysqlSuite) SetUpTest(c *C) {
@@ -76,6 +78,7 @@ func (ms *MysqlSuite) SetUpSuite(c *C) {
 	ms.dbPwd = "00010001"
 	ms.dbServer = "127.0.0.1"
 	ms.dbPort = "3306"
+	ms.lockTimeout = time.Second * 2
 
 	conn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", ms.dbUser, ms.dbPwd, ms.dbServer, ms.dbPort, "mysql")
 	err := createdb(conn, "lock2")
@@ -83,6 +86,7 @@ func (ms *MysqlSuite) SetUpSuite(c *C) {
 	orm.RegisterDataBase("default", "mysql", ms.conn)
 	c.Assert(err, IsNil)
 	orm.NewOrm().Using("default")
+	log.SetLevel(log.DebugLevel)
 
 }
 
