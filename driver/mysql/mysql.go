@@ -35,7 +35,7 @@ func (msd *MySQLDriver) Rlock(user, host string, timeout time.Duration) (bool, e
 	}
 
 	var getlock bool
-	getlock, err = models.RLock(user, host, timeout)
+	getlock, err = models.Rlock(user, host, timeout)
 	if err != nil {
 		return false, err
 	} else {
