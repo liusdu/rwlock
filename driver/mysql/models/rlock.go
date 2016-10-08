@@ -23,7 +23,9 @@ func Rlock(user, host string, timeout time.Duration) (bool, error) {
 	}
 	log.Debugf("RLock[m: %s-%s]: Begin trasaction success", user, host)
 
-	defer endTransaction(o, err)
+	defer func() {
+		endTransaction(o, err)
+	}()
 
 	// 2. Lock the user
 	lock, err = lockUser(o, user)
@@ -97,7 +99,9 @@ func RUnlock(user, host string) error {
 		return fmt.Errorf("Runlock[m]: Begin trasaction err: %s", err)
 	}
 
-	defer endTransaction(o, err)
+	defer func() {
+		endTransaction(o, err)
+	}()
 
 	// 2. Lock the user
 	lock, err = lockUser(o, user)

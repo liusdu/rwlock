@@ -8,8 +8,8 @@ import (
 	//log "github.com/Sirupsen/logrus"
 	//"github.com/astaxie/beego/orm"
 
-	lock "rwlock"
-	"rwlock/driver/mysql/models"
+	lock "github.com/liusdu/rwlock"
+	"github.com/liusdu/rwlock/driver/mysql/models"
 )
 
 var (

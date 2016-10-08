@@ -7,7 +7,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	. "rwlock/driver"
+	. "github.com/liusdu/rwlock/driver"
 )
 
 // we should register a driver first
@@ -85,7 +85,7 @@ func InitDriver(name string, timeout time.Duration) error {
 	}
 	__driver = __drivers[name]
 	__timeOut = timeout
-	log.Infof("Rwlock: Init %s rwlock driver(timeout: %d seconds) sucessfully,try to clean up garbages from the last run", __timeOut/time.Second, name)
+	log.Infof("Rwlock: Init %s rwlock driver(timeout: %d seconds) sucessfully,try to clean up garbages from the last run", name, __timeOut/time.Second)
 	__driver.Cleanup(__hostname, __timeOut)
 	return nil
 }

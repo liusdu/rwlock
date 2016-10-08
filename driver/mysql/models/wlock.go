@@ -22,7 +22,9 @@ func Wlock(user, host string, timeout time.Duration) (bool, error) {
 	}
 	log.Debugf("WLock[m: %s-%s]: Begin trasaction success", user, host)
 
-	defer endTransaction(o, err)
+	defer func() {
+		endTransaction(o, err)
+	}()
 
 	// 2. Lock the user
 	lock, err = lockUser(o, user)
@@ -78,7 +80,10 @@ func WUnlock(user, host string) error {
 		return fmt.Errorf("Wunlock[m]: Begin trasaction err: %s", err)
 	}
 
-	defer endTransaction(o, err)
+	defer func() {
+		endTransaction(o, err)
+	}()
+
 	// 2. Lock the user
 	lock, err = lockUser(o, user)
 	if err != nil {
