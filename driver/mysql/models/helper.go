@@ -43,7 +43,7 @@ func InsertUser(user string) error {
 	defer endTransaction(o, err)
 	lock := Rwlock{
 		User: user,
-		Time: time.Now()}
+		Time: time.Now().UTC().Unix()}
 
 	if _, err = o.Insert(&lock); err != nil {
 		return fmt.Errorf("InsertUser[m: %s]: insert row of rwlock err: %s", user, err)
@@ -100,7 +100,7 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string, timeout time.
 		host.Hostname = hostname
 		host.User = user
 		host.Count = 1
-		host.Time = time.Now()
+		host.Time = time.Now().UTC().Unix()
 		if _, err = o.Insert(host); err != nil {
 			return fmt.Errorf("increaseHostCount: Insert host table failed %s", err)
 		}
@@ -110,10 +110,11 @@ func increaseHostCount(o orm.Ormer, user *Rwlock, hostname string, timeout time.
 		return fmt.Errorf("IncreaseHost: CountUnexcept error: %s", err)
 	}
 
-	if ok := time.Now().After(host.Time.Add(timeout)); ok == true {
+	locktime := time.Unix(host.Time, 0)
+	if ok := time.Now().After(locktime.Add(timeout)); ok == true {
 		host.Count = 1
 	}
-	host.Time = time.Now()
+	host.Time = time.Now().UTC().Unix()
 	host.Count += 1
 
 	if _, err = o.Update(host, "count"); err != nil {

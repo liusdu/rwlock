@@ -46,7 +46,7 @@ func Rlock(user, host string, timeout time.Duration) (bool, error) {
 	if lock.Type == "r" {
 		// we do not need to remove the related row on host table
 		// Time clumon of host table can tell me to do it later
-		lock.Time = time.Now()
+		lock.Time = time.Now().UTC().Unix()
 		if _, err = o.Update(lock, "time", "type"); err != nil {
 			//TODO what should we do for this
 			log.Errorf("RLock[m: %s-%s]: Unable to update time and type of lock: %s", user, host, err)
@@ -60,12 +60,13 @@ func Rlock(user, host string, timeout time.Duration) (bool, error) {
 
 	} else {
 		// we should check is it timeout
-		ok := time.Now().After(lock.Time.Add(timeout))
+		locktime := time.Unix(lock.Time, 0)
+		ok := time.Now().After(locktime.Add(timeout))
 		if (lock.Type == "w" && ok) || lock.Type != "w" {
 			// The Wlock is out of date, replace with Rlock
 			log.Infof("The Wlock is out of date, replace with Rlock")
 			lock.Type = "r"
-			lock.Time = time.Now()
+			lock.Time = time.Now().UTC().Unix()
 			if _, err = o.Update(lock, "time", "type"); err != nil {
 				return false, err
 			}

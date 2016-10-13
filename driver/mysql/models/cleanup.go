@@ -98,14 +98,15 @@ func cleanupEmptylock(o orm.Ormer, lock *Rwlock, hostname string) error {
 
 func cleanupRlock(o orm.Ormer, lock *Rwlock, hostname string) error {
 	var (
-		hosts  []*Host
-		latest time.Time
-		err    error
+		hosts    []*Host
+		latest   int64
+		locktime int64
+		err      error
 	)
 
 	log.Debugf("cleanupRlock[m:%s-%s]: Cleanning Rlock", lock.User, hostname)
 
-	_, err = o.QueryTable("host").Filter("hostname__exact", hostname).All(&hosts)
+	_, err = o.QueryTable("host").Filter("User__User__exact", lock.User).All(&hosts)
 	if err == orm.ErrNoRows || len(hosts) == 0 {
 		log.Debug("Cleanrlock[m: %s]: clean up lock, no need to clean node infomation", lock.User)
 		cnt, err := o.Delete(lock)
@@ -124,6 +125,7 @@ func cleanupRlock(o orm.Ormer, lock *Rwlock, hostname string) error {
 
 	for _, h := range hosts {
 		if h.Hostname == hostname {
+			locktime = h.Time
 			log.Debugf("cleanupRlock[m:%s-%s]: cleanup infomaton of this node,lock.User, hostname")
 			_, err := o.Delete(h)
 			if err != nil {
@@ -132,12 +134,12 @@ func cleanupRlock(o orm.Ormer, lock *Rwlock, hostname string) error {
 			}
 			continue
 		}
-		if latest.Before(h.Time) {
+		if latest > h.Time {
 			latest = h.Time
 		}
 	}
 
-	if latest.Equal(time.Time{}) {
+	if latest == 0 {
 		log.Debug("Cleanrlock[m: %s]: clean up lock", lock.User)
 		_, err := o.Delete(lock)
 		if err != nil {
@@ -147,7 +149,7 @@ func cleanupRlock(o orm.Ormer, lock *Rwlock, hostname string) error {
 		return nil
 
 	}
-	if lock.Time.After(latest) {
+	if locktime > latest {
 		lock.Time = latest
 		if _, err = o.Update(lock, "time", "type"); err != nil {
 			//TODO what should we do for this

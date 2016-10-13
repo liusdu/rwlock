@@ -38,7 +38,9 @@ func Wlock(user, host string, timeout time.Duration) (bool, error) {
 		return false, nil
 	}
 
-	if ok := time.Now().After(lock.Time.Add(timeout)); ok || lock.Type == "" {
+	locktime := time.Unix(lock.Time, 0)
+
+	if ok := time.Now().After(locktime.Add(timeout)); ok || lock.Type == "" {
 		// we shoud refile rwlock row and try to delete related row on host table;
 		log.Infof("WLock[m: %s-%s]: Last lock is out of date,replace it", user, host)
 		if lock.Type == "r" {
@@ -46,7 +48,7 @@ func Wlock(user, host string, timeout time.Duration) (bool, error) {
 				return false, err
 			}
 		}
-		lock.Time = time.Now()
+		lock.Time = time.Now().UTC().Unix()
 		lock.Type = "w"
 		lock.LastWlock = host
 

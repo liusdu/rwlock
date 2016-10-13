@@ -77,7 +77,7 @@ func (ms *MysqlSuite) SetUpSuite(c *C) {
 	ms.dbUser = "root"
 	ms.dbPwd = "00010001"
 	ms.dbServer = "127.0.0.1"
-	ms.dbPort = "3306"
+	ms.dbPort = "3307"
 	ms.lockTimeout = time.Second * 2
 
 	conn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", ms.dbUser, ms.dbPwd, ms.dbServer, ms.dbPort, "mysql")
